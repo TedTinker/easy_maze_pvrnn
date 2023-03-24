@@ -3,7 +3,7 @@
 import pickle
 
 from utils import args, folder
-from train import Trainer
+from agent import Agent
 
 print("name:")
 print(args.name)
@@ -32,8 +32,8 @@ try:
     print("Already trained!\n")
 except: 
     print("No already-trained values. Training!\n")
-    trainer = Trainer(args, "{}_{}".format(args.name, args.id))
-    plot_dict, min_max_dict = trainer.train()
+    agent = Agent(agents = args)
+    plot_dict, min_max_dict = agent.train()
 
     with open(folder + "/plot_dict_{}.pickle".format(   str(args.id).zfill(3)), "wb") as handle:
         pickle.dump(plot_dict, handle)
