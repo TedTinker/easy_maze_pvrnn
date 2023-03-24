@@ -38,8 +38,6 @@ class PVRNN(nn.Module):
             self.zq_mu.append(nn.Sequential(nn.Linear(args.h_size + obs_size + action_size, args.z_size), nn.Tanh()))
             self.zq_rho.append(             nn.Linear(args.h_size + obs_size + action_size, args.z_size, args.z_size))
             
-        self.a_mu  = nn.Linear(args.h_size, action_size)
-        self.a_rho = nn.Linear(args.h_size, action_size)
         self.predict_o = nn.Sequential(
             nn.Linear(args.h_size, obs_size),
             nn.Sigmoid())
@@ -51,8 +49,6 @@ class PVRNN(nn.Module):
         self.zp_rho.apply(init_weights)
         self.zq_mu.apply(init_weights)
         self.zq_rho.apply(init_weights)
-        self.a_mu.apply(init_weights)
-        self.a_rho.apply(init_weights)
         self.predict_o.apply(init_weights)
         self.to(self.args.device)
         
@@ -93,16 +89,61 @@ class PVRNN(nn.Module):
     
     def pred_o(self, d):
         return(self.predict_o(d[:,:,-1]))
+    
+    
+
+class Summarizer(nn.Module): 
+    
+    def __init__(self, args = default_args):
+        super(Summarizer, self).__init__()
         
-    def a(self, d, epsilon=1e-6):
-        mu = self.a_mu(d[:,:,-1])
-        std = torch.log1p(torch.exp(self.a_rho(d)))
-        e = Normal(0, 1).sample(std.shape).to("cuda" if next(self.parameters()).is_cuda else "cpu")
+        self.args = args
+        self.gru = nn.GRU(
+            input_size =  obs_size + action_size,
+            hidden_size = args.h_size,
+            batch_first = True)
+        
+        self.gru.apply(init_weights)
+        self.to(self.args.device)
+        
+    def forward(self, obs, prev_a, h = None):
+        x = torch.cat([obs, prev_a], -1)
+        h, _ = self.gru(x, h)
+        return(h)
+    
+    
+    
+class Actor(nn.Module):
+
+    def __init__(self, args = default_args):
+        super(Actor, self).__init__()
+        
+        self.args = args
+        
+        self.sum = Summarizer(self.args)
+        self.lin = nn.Sequential(
+            nn.Linear(obs_size, args.h_size),
+            nn.LeakyReLU())
+        self.mu = nn.Linear(args.h_size, action_size)
+        self.rho= nn.Sequential(
+            nn.Linear(args.h_size, action_size))
+
+        self.lin.apply(init_weights)
+        self.mu.apply(init_weights)
+        self.rho.apply(init_weights)
+        self.to(self.args.device)
+
+    def forward(self, o, epsilon=1e-6):
+        x = self.lin(o)
+        mu = self.mu(x)
+        std = torch.log1p(torch.exp(self.rho(x)))
+        dist = Normal(0, 1)
+        e = dist.sample(std.shape).to("cuda" if next(self.parameters()).is_cuda else "cpu")
         action = torch.tanh(mu + e * std)
-        log_prob = Normal(mu, std).log_prob(mu + e * std) - torch.log(1 - action.pow(2) + epsilon)
+        log_prob = Normal(mu, std).log_prob(mu + e * std) - \
+            torch.log(1 - action.pow(2) + epsilon)
         log_prob = torch.mean(log_prob, -1).unsqueeze(-1)
         return(action, log_prob)
-        
         
         
     
@@ -112,24 +153,19 @@ class Critic(nn.Module):
         super(Critic, self).__init__()
         
         self.args = args
-                
-        self.gru = nn.GRU(
-            input_size  = obs_size + action_size,
-            hidden_size = args.h_size,
-            batch_first = True)
+        
+        self.sum = Summarizer(self.args)
         self.lin = nn.Sequential(
             nn.Linear(args.h_size + action_size, args.h_size),
             nn.LeakyReLU(),
             nn.Linear(args.h_size, 1))
 
-        self.gru.apply(init_weights)
         self.lin.apply(init_weights)
         self.to(args.device)
 
-    def forward(self, o, p_a, a, h = None):
-        x = torch.cat([o, p_a], -1)
-        h, _ = self.gru(x, h)
-        x = torch.cat([h, a], dim=-1)
+    def forward(self, o, prev_a, a):
+        h = self.sum(o, prev_a)
+        x = torch.cat((h, a), dim=-1)
         x = self.lin(x)
         return(x)
     
@@ -147,6 +183,15 @@ if __name__ == "__main__":
     print(pvrnn)
     print()
     print(torch_summary(pvrnn))
+    
+    
+    
+    actor = Actor(args)
+    
+    print("\n\n")
+    print(actor)
+    print()
+    print(torch_summary(actor, ((3, 1, obs_size), (3, 1, action_size))))
     
     
     

@@ -28,7 +28,8 @@ parser.add_argument('--h_size',             type=int,   default = 32)
 parser.add_argument('--z_size',             type=int,   default = 8)
 parser.add_argument("--rnn_speed",nargs="*",type=float, default = [1])        # tau in PVRNN
 parser.add_argument('--pvrnn_lr',           type=float, default = .01)
-parser.add_argument('--alpha_lr',           type=float, default = .01) 
+parser.add_argument('--alpha_lr',           type=float, default = .01)
+parser.add_argument('--actor_lr',           type=float, default = .01) 
 parser.add_argument('--critic_lr',          type=float, default = .01)
 
 # Memory buffer
