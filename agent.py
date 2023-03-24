@@ -54,7 +54,7 @@ class Agent:
         self.memory = RecurrentReplayBuffer(self.args) 
         self.plot_dict = {
             "args" : self.args,
-            "title" : self.title,
+            "title" : "{}_{}".format(self.args.name, self.args.id),
             "rewards" : [], "spot_names" : [], 
             "error" : [], "complexity" : [], 
             "alpha" : [], "actor" : [], 
@@ -65,9 +65,9 @@ class Agent:
 
     
     
-    def train(self):
+    def training(self):
         manager = enlighten.Manager(width = 150)
-        E = manager.counter(total = self.args.episodes, desc = "{}_{}".format(self.args.name, self.args.id), unit = "ticks", color = "blue")
+        E = manager.counter(total = self.args.episodes, desc = self.plot_dict["title"], unit = "ticks", color = "blue")
         episodes = 0
         while(True):
             self.episode(episodes == 0 or episodes+1 >= self.args.episodes or (episodes) % self.args.keep_data == 0)
@@ -82,6 +82,7 @@ class Agent:
             if(not key in ["args", "title", "spot_names"]):
                 minimum = None ; maximum = None 
                 l = self.plot_dict[key]
+                print(key)
                 l = deepcopy(l)
                 l = [_ for _ in l if _ != None]
                 if(l != []):
@@ -95,32 +96,34 @@ class Agent:
     
     
     
-    def episode(self, plot_dict_push, verbose = False):
+    def episode(self, plot_dict_push, verbose = True):
         done = False ; prev_a = torch.zeros((1, action_size)) ; h = None
         t_maze = T_Maze()
         if(verbose): print("\n\n\n\n\nSTART!\n")
         if(verbose): print(t_maze)
-        with torch.no_grad():
-            while(done == False):
+        while(done == False):
+            with torch.no_grad():
                 o = t_maze.obs()
-                a, h = self.actor(o, prev_a, h)
+                a, _, h = self.actor(o, prev_a, h)
                 action = a.squeeze(0).tolist()
                 r, spot_name, done = t_maze.action(action[0], action[1], verbose)
                 next_o = t_maze.obs() ; prev_a = a ; self.steps += 1
                 self.memory.push(o, a, r, next_o, done, done)
                 
-                if((self.steps+1) % self.args.learn_per_steps == 0): 
-                    l, e, ic, ie, naive, free = self.learn(self.args.batch_size)
+            if((self.steps+1) % self.args.learn_per_steps == 0): 
+                plot_data = self.learn(self.args.batch_size)
+                if(plot_data != None): 
+                    l, e, ie, ic, naive, free = plot_data
                     if(plot_dict_push):
-                        self.plot_dict["error"].append(l[0][0])
-                        self.plot_dict["complexity"].append(l[0][1])
-                        self.plot_dict["alpha"].append(l[0][2])
-                        self.plot_dict["actor"].append(l[0][3])
-                        self.plot_dict["critic_1"].append(l[0][4])
-                        self.plot_dict["critic_2"].append(l[0][5])
+                        self.plot_dict["error"].append(l[0])
+                        self.plot_dict["complexity"].append(l[1])
+                        self.plot_dict["alpha"].append(l[2])
+                        self.plot_dict["actor"].append(l[3])
+                        self.plot_dict["critic_1"].append(l[4])
+                        self.plot_dict["critic_2"].append(l[5])
                         self.plot_dict["extrinsic"].append(e)
-                        self.plot_dict["intrinsic_curiosity"].append(ic)
                         self.plot_dict["intrinsic_entropy"].append(ie)
+                        self.plot_dict["intrinsic_curiosity"].append(ic)
                         self.plot_dict["naive"].append(naive)
                         self.plot_dict["free"].append(free)
             if(plot_dict_push):
@@ -130,14 +133,105 @@ class Agent:
     
     
     def learn(self, batch_size):
-
-        obs, actions, rewards, dones, masks = self.memory.sample(batch_size)
+        
+        batch = self.memory.sample(batch_size)
+        if(batch == None): return(None)
+        obs, actions, rewards, dones, masks = batch
         next_obs = obs[:,1:] ; obs = obs[:,:-1]
         prev_actions = torch.cat([torch.zeros(actions[:,0].unsqueeze(1).shape), actions[:,:-1]], dim = 1)
+        extrinsic_reward = rewards.mean()
         
         print("\n\n")
-        print(obs.shape, actions.shape, rewards.shape, dones.shape, masks.shape)
+        print("obs: {}. actions: {}. rewards: {}. dones: {}. masks: {}.".format(obs.shape, actions.shape, rewards.shape, dones.shape, masks.shape))
         print("\n\n")
+        
+        # Train Forward
+        
+        
+        
+        # Train critics
+        with torch.no_grad():
+            next_actions, log_pis_next, _ = self.actor(next_obs, actions)
+            Q_target1_next = self.critic1_target(next_obs, actions, next_actions)
+            Q_target2_next = self.critic2_target(next_obs, actions, next_actions)
+            Q_target_next = torch.min(Q_target1_next, Q_target2_next)
+            if self.args.alpha == None: Q_targets = rewards + (self.args.GAMMA * (1 - dones) * (Q_target_next - self.alpha * log_pis_next))
+            else:                       Q_targets = rewards + (self.args.GAMMA * (1 - dones) * (Q_target_next - self.args.alpha * log_pis_next))
+            
+        Q_1 = self.critic1(obs, prev_actions, actions)
+        critic1_loss = 0.5*F.mse_loss(Q_1*masks, Q_targets*masks)
+        self.critic1_opt.zero_grad()
+        #critic1_loss.backward()
+        #self.critic1_opt.step()
+        
+        Q_2 = self.critic2(obs, prev_actions, actions)
+        critic2_loss = 0.5*F.mse_loss(Q_2*masks, Q_targets*masks)
+        self.critic2_opt.zero_grad()
+        #critic2_loss.backward()
+        #self.critic2_opt.step()
+        
+        
+        
+        # Train alpha
+        if self.args.alpha == None:
+            new_actions, log_pis, _ = self.actor(obs, prev_actions)
+            alpha_loss = -(self.log_alpha * (log_pis + self.target_entropy))*masks
+            alpha_loss = alpha_loss.mean() / masks.mean()
+            self.alpha_opt.zero_grad()
+            alpha_loss.backward()
+            self.alpha_opt.step()
+            self.alpha = torch.exp(self.log_alpha) 
+        else:
+            alpha_loss = None
+            
+            
+        
+        # Train actor
+        if self.steps % self.args.d == 0:
+            if self.args.alpha == None: alpha = self.alpha 
+            else:                       
+                alpha = self.args.alpha
+                new_actions, log_pis, _ = self.actor(obs, prev_actions)
+
+            if self._action_prior == "normal":
+                loc = torch.zeros(self.action_size, dtype=torch.float64)
+                scale_tril = torch.tensor([[1, 0], [1, 1]], dtype=torch.float64)
+                policy_prior = MultivariateNormal(loc=loc, scale_tril=scale_tril)
+                policy_prior_log_probs = policy_prior.log_prob(new_actions).unsqueeze(-1)
+            elif self._action_prior == "uniform":
+                policy_prior_log_probs = 0.0
+            Q = torch.min(
+                self.critic1(obs, prev_actions, new_actions), 
+                self.critic2(obs, prev_actions, new_actions)).mean(-1).unsqueeze(-1)
+            intrinsic_entropy = torch.mean((alpha * log_pis)*masks).item()
+            actor_loss = (alpha * log_pis - policy_prior_log_probs - Q)*masks
+            actor_loss = actor_loss.mean() / masks.mean()
+
+            self.actor_opt.zero_grad()
+            actor_loss.backward()
+            self.actor_opt.step()
+
+            self.soft_update(self.critic1, self.critic1_target, self.args.tau)
+            self.soft_update(self.critic2, self.critic2_target, self.args.tau)
+            
+        else:
+            intrinsic_entropy = None
+            actor_loss = None
+            
+            
+        
+        error_loss = 1 ; complexity_loss = 1
+        if(alpha_loss != None): alpha_loss = alpha_loss.item()
+        if(actor_loss != None): actor_loss = actor_loss.item()
+        critic1_loss = log(critic1_loss.item())
+        critic2_loss = log(critic2_loss.item())
+        losses = [error_loss, complexity_loss, alpha_loss, actor_loss, critic1_loss, critic2_loss]
+        
+        intrinsic_curiosity = 2
+        naive_curiosity = 5
+        free_curiosity = 6
+        
+        return(losses, extrinsic_reward, intrinsic_entropy, intrinsic_curiosity, naive_curiosity, free_curiosity)
         
 
     
@@ -150,7 +244,7 @@ class Agent:
 
     def state_dict(self):
         return(
-            self.forward.state_dict(),
+            self.pvrnn.state_dict(),
             self.actor.state_dict(),
             self.critic1.state_dict(),
             self.critic1_target.state_dict(),
@@ -158,7 +252,7 @@ class Agent:
             self.critic2_target.state_dict())
 
     def load_state_dict(self, state_dict):
-        self.forward.load_state_dict(state_dict[0])
+        self.pvrnn.load_state_dict(state_dict[0])
         self.actor.load_state_dict(state_dict[1])
         self.critic1.load_state_dict(state_dict[2])
         self.critic1_target.load_state_dict(state_dict[3])
@@ -167,7 +261,7 @@ class Agent:
         self.memory = RecurrentReplayBuffer(self.args)
 
     def eval(self):
-        self.forward.eval()
+        self.pvrnn.eval()
         self.actor.eval()
         self.critic1.eval()
         self.critic1_target.eval()
@@ -175,7 +269,7 @@ class Agent:
         self.critic2_target.eval()
 
     def train(self):
-        self.forward.train()
+        self.pvrnn.train()
         self.actor.train()
         self.critic1.train()
         self.critic1_target.train()

@@ -1,7 +1,6 @@
 #%% 
 
 import argparse
-#import sys ; sys.argv=[''] ; del sys
 import os 
 
 #if(os.getcwd().split("/")[-1] != "easy_maze"): os.chdir("easy_maze")
@@ -36,7 +35,7 @@ parser.add_argument('--critic_lr',          type=float, default = .01)
 parser.add_argument('--capacity',           type=int,   default = 100)
 
 # Training
-parser.add_argument('--episodes',           type=int,   default = 1000)
+parser.add_argument('--episodes',           type=int,   default = 10) # 1000
 parser.add_argument('--learn_per_steps',    type=int,   default = 3)
 parser.add_argument('--batch_size',         type=int,   default = 8)
 parser.add_argument('--GAMMA',              type=int,   default = .99)

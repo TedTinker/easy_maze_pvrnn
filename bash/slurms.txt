@@ -1,32 +1,14 @@
-d   : 
-d2  : --beta 1 2 3
+d  : 
 
+e  : --alpha None
 
-e   : --alpha None
+n  : --curiosity naive_1
+en : --alpha None --curiosity naive
 
-n1   : --curiosity naive_1
-en1 : --alpha None --curiosity naive_1
-
-n2   : --curiosity naive_2
-en2 : --alpha None --curiosity naive_2
-
-n3   : --curiosity naive_3
-en3 : --alpha None --curiosity naive_3
-
-f   : --curiosity free 
+f  : --curiosity free 
 ef : --alpha None --curiosity free
 
 
 
 
-
-
-en2a : --alpha None --curiosity naive_2 --naive_2_eta 50
-en2b : --alpha None --curiosity naive_2 --naive_2_eta 75
-en2c : --alpha None --curiosity naive_2 --naive_2_eta 100
-en2d : --alpha None --curiosity naive_2 --naive_2_eta 125
-en2e : --alpha None --curiosity naive_2 --naive_2_eta 150
-en2f : --alpha None --curiosity naive_2 --naive_2_eta 175
-en2g : --alpha None --curiosity naive_2 --naive_2_eta 200
-en2h : --alpha None --curiosity naive_2 --naive_2_eta 225
 

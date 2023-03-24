@@ -106,7 +106,7 @@ class Summarizer(nn.Module):
         self.gru.apply(init_weights)
         self.to(self.args.device)
         
-    def forward(self, obs, prev_a, h = None):
+    def forward(self, obs, prev_a, h):
         x = torch.cat([obs, prev_a], -1)
         h, _ = self.gru(x, h)
         return(h)
@@ -133,7 +133,8 @@ class Actor(nn.Module):
         self.rho.apply(init_weights)
         self.to(self.args.device)
 
-    def forward(self, o, epsilon=1e-6):
+    def forward(self, o, prev_a, h = None, epsilon=1e-6):
+        h = self.sum(o, prev_a, h)
         x = self.lin(o)
         mu = self.mu(x)
         std = torch.log1p(torch.exp(self.rho(x)))
@@ -143,7 +144,7 @@ class Actor(nn.Module):
         log_prob = Normal(mu, std).log_prob(mu + e * std) - \
             torch.log(1 - action.pow(2) + epsilon)
         log_prob = torch.mean(log_prob, -1).unsqueeze(-1)
-        return(action, log_prob)
+        return(action, log_prob, h)
         
         
     
@@ -163,8 +164,8 @@ class Critic(nn.Module):
         self.lin.apply(init_weights)
         self.to(args.device)
 
-    def forward(self, o, prev_a, a):
-        h = self.sum(o, prev_a)
+    def forward(self, o, prev_a, a, h = None):
+        h = self.sum(o, prev_a, h)
         x = torch.cat((h, a), dim=-1)
         x = self.lin(x)
         return(x)
