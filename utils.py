@@ -3,8 +3,8 @@
 import argparse
 import os 
 
-#if(os.getcwd().split("/")[-1] != "easy_maze"): os.chdir("easy_maze")
-#print(os.getcwd())
+if(os.getcwd().split("/")[-1] != "easy_maze"): os.chdir("easy_maze")
+print(os.getcwd())
 
 import torch
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -35,15 +35,15 @@ parser.add_argument('--critic_lr',          type=float, default = .01)
 parser.add_argument('--capacity',           type=int,   default = 100)
 
 # Training
-parser.add_argument('--episodes',           type=int,   default = 10) # 1000
+parser.add_argument('--episodes',           type=int,   default = 1000)
 parser.add_argument('--learn_per_steps',    type=int,   default = 3)
 parser.add_argument('--batch_size',         type=int,   default = 8)
 parser.add_argument('--GAMMA',              type=int,   default = .99)
 parser.add_argument("--d",                  type=int,   default = 2)        # Delay to train actors
 parser.add_argument("--alpha",              type=str,   default = 0)        # Soft-Actor-Critic entropy aim
 parser.add_argument("--target_entropy",     type=float, default = -2)       # Soft-Actor-Critic entropy aim
-parser.add_argument("--beta", nargs="*",    type=float, default = [1])   # Scale complexity loss
-parser.add_argument("--eta",  nargs="*",    type=float, default = [1])        # Scale curiosity
+parser.add_argument("--beta", nargs="*",    type=float, default = [1,1])   # Scale complexity loss
+parser.add_argument("--eta",  nargs="*",    type=float, default = [1,1])        # Scale curiosity
 parser.add_argument("--tau",                type=float, default = .05)      # For soft-updating target critics
 parser.add_argument("--curiosity",          type=str,   default = "none")     # Which kind of curiosity
 parser.add_argument('--keep_data',          type=int,   default = 10)
@@ -93,7 +93,7 @@ args.name = get_args_name(default_args, args)
 
 folder = "saved/" + args.arg_title
 if(args.arg_title[:3] != "___" and args.arg_title != "default"):
-    try: os.mkdir(folder)
+    try:    os.mkdir(folder)
     except: pass
 if(default_args.alpha == "None"): default_args.alpha = None
 if(args.alpha == "None"):         args.alpha = None
@@ -126,3 +126,18 @@ def dkl(mu_1, std_1, mu_2, std_2):
     out = (.5 * (term_1 + term_2 - term_3 - 1))
     out = torch.nan_to_num(out)
     return(out)
+
+
+
+import datetime 
+start_time = datetime.datetime.now()
+
+def reset_start_time():
+    global start_time
+    start_time = datetime.datetime.now()
+    
+def duration():
+    global start_time
+    change_time = datetime.datetime.now() - start_time
+    #change_time = change_time - datetime.timedelta(microseconds=change_time.microseconds)
+    return(change_time)

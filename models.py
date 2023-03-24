@@ -17,7 +17,7 @@ class PVRNN(nn.Module):
         super(PVRNN, self).__init__()
         
         self.args = args
-        self.levels = len(args.beta)
+        self.levels = len(args.rnn_speed)
         
         self.hd = torch.nn.ModuleList()
         self.hz = torch.nn.ModuleList()
@@ -38,9 +38,8 @@ class PVRNN(nn.Module):
             self.zq_mu.append(nn.Sequential(nn.Linear(args.h_size + obs_size + action_size, args.z_size), nn.Tanh()))
             self.zq_rho.append(             nn.Linear(args.h_size + obs_size + action_size, args.z_size, args.z_size))
             
-        self.predict_o = nn.Sequential(
-            nn.Linear(args.h_size, obs_size),
-            nn.Sigmoid())
+        self.o_mu  = nn.Sequential(nn.Linear(args.h_size, obs_size), nn.Tanh())
+        self.o_rho = nn.Linear(args.h_size, obs_size)
         
         self.hd.apply(init_weights)
         self.hz.apply(init_weights)
@@ -49,7 +48,8 @@ class PVRNN(nn.Module):
         self.zp_rho.apply(init_weights)
         self.zq_mu.apply(init_weights)
         self.zq_rho.apply(init_weights)
-        self.predict_o.apply(init_weights)
+        self.o_mu.apply(init_weights)
+        self.o_rho.apply(init_weights)
         self.to(self.args.device)
         
     def forward(self): pass
@@ -57,38 +57,42 @@ class PVRNN(nn.Module):
     def h_d(self, h, d, zq):
         new_h = torch.zeros(h.shape) ; new_d = torch.zeros(d.shape)
         for level in range(self.levels):
-            new_h[:,:,level] += self.hd[level](d[:,:,level])
-            new_h[:,:,level] += self.hz[level](zq[:,:,level])
-            if(level != 0): new_h[:,:,level] += self.hhd[level](new_d[:,:,level-1])
-            new_h[:,:,level] = \
+            new_h[:,level] += self.hd[level](d[:,level])
+            new_h[:,level] += self.hz[level](zq[:,level])
+            if(level != 0): new_h[:,:,level] += self.hhd[level](new_d[:,level-1])
+            new_h[:,level] = \
                 (1 - 1/self.args.rnn_speed[level]) * h[:,:,level] + \
-                1/self.args.rnn_speed[level]       * new_h[:,:,level]
-            new_d[:,:,level] = F.Tanh(new_h[:,:,level])
+                1/self.args.rnn_speed[level]       * new_h[:,level]
+            new_d[:,level] = torch.tanh(new_h[:,level])
         return(new_h, new_d)
     
     def zp(self, d):
-        mu  = torch.zeros(d.shape[0], d.shape[1], self.levels, self.args.z_size)
-        std = torch.zeros(d.shape[0], d.shape[1], self.levels, self.args.z_size)
+        mu  = torch.zeros(d.shape[0], self.levels, self.args.z_size)
+        std = torch.zeros(d.shape[0], self.levels, self.args.z_size)
         for level in range(self.levels):
-            mu[:,:,level]  = self.zp_mu[level](d[:,:,level])
-            std[:,:,level] = torch.log1p(torch.exp(self.zp_rho[level](d[:,:,level])))
+            mu[:,level]  = self.zp_mu[level](d[:,level])
+            std[:,level] = torch.log1p(torch.exp(self.zp_rho[level](d[:,level])))
         e = Normal(0, 1).sample(std.shape).to("cuda" if next(self.parameters()).is_cuda else "cpu")
         zp = mu + e * std
         return(zp, mu, std)
     
     def zq(self, d, o, prev_a):
-        mu  = torch.zeros(d.shape[0], d.shape[1], self.levels, self.args.z_size)
-        std = torch.zeros(d.shape[0], d.shape[1], self.levels, self.args.z_size)
+        mu  = torch.zeros(d.shape[0], self.levels, self.args.z_size)
+        std = torch.zeros(d.shape[0], self.levels, self.args.z_size)
         for level in range(self.levels):
-            x = torch.cat([d[:,:,level], o, prev_a], dim = -1)
-            mu[:,:,level]  = self.zq_mu[level](x)
-            std[:,:,level] = torch.log1p(torch.exp(self.zq_rho[level](x)))
+            x = torch.cat([d[:,level], o, prev_a], dim = -1)
+            mu[:,level]  = self.zq_mu[level](x)
+            std[:,level] = torch.log1p(torch.exp(self.zq_rho[level](x)))
         e = Normal(0, 1).sample(std.shape).to("cuda" if next(self.parameters()).is_cuda else "cpu")
         zp = mu + e * std
         return(zp, mu, std)
     
     def pred_o(self, d):
-        return(self.predict_o(d[:,:,-1]))
+        mu  = self.o_mu(d[:,-1])
+        std = torch.log1p(torch.exp(self.o_rho(d[:,-1])))
+        e = Normal(0, 1).sample(std.shape).to("cuda" if next(self.parameters()).is_cuda else "cpu")
+        pred_o = torch.sigmoid(mu + e * std)
+        return(pred_o, mu, std, e)
     
     
 
@@ -141,8 +145,7 @@ class Actor(nn.Module):
         dist = Normal(0, 1)
         e = dist.sample(std.shape).to("cuda" if next(self.parameters()).is_cuda else "cpu")
         action = torch.tanh(mu + e * std)
-        log_prob = Normal(mu, std).log_prob(mu + e * std) - \
-            torch.log(1 - action.pow(2) + epsilon)
+        log_prob = Normal(mu, std).log_prob(mu + e * std) - torch.log(1 - action.pow(2) + epsilon)
         log_prob = torch.mean(log_prob, -1).unsqueeze(-1)
         return(action, log_prob, h)
         

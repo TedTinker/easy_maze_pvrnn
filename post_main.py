@@ -68,7 +68,7 @@ else:
             
     min_max_dict = {}
     for key in plot_dicts[0].keys():
-        if(not key in ["title", "spot_names"]):
+        if(not key in ["args", "title", "spot_names"]):
             minimum = None ; maximum = None
             for mm_dict in min_max_dicts:
                 if(mm_dict[key] != (None, None)):

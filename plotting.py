@@ -6,15 +6,13 @@ import numpy as np
 import datetime 
 from math import log
 
-def duration(start_time):
-    change_time = datetime.datetime.now() - start_time
-    change_time = change_time - datetime.timedelta(microseconds=change_time.microseconds)
-    return(change_time)
+from utils import duration
 
 
 
 def get_quantiles(plot_dict, name):
     xs = [i for i, x in enumerate(plot_dict[name][0]) if x != None]
+    print(name, plot_dict[name])
     lists = np.array(plot_dict[name], dtype=float)    
     lists = lists[:,xs]
     quantile_dict = {"xs" : [x * plot_dict["args"][0].keep_data for x in xs]}

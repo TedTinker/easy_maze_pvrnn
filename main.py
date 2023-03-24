@@ -2,22 +2,14 @@
 
 import pickle
 
-from utils import args, folder
+from utils import args, folder, duration
 from agent import Agent
 
-print("name:")
-print(args.name)
-print("id:")
-print(args.id)
+print("name:\n{}".format(args.name))
+print("id:  \n{}".format(args.id))
 
 import datetime 
 start_time = datetime.datetime.now()
-    
-def duration():
-    global start_time
-    change_time = datetime.datetime.now() - start_time
-    change_time = change_time - datetime.timedelta(microseconds=change_time.microseconds)
-    return(change_time)
 
 try:
     print("\nTrying to load already-trained values...\n")

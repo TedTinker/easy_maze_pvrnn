@@ -2,7 +2,7 @@ d  :
 
 e  : --alpha None
 
-n  : --curiosity naive_1
+n  : --curiosity naive
 en : --alpha None --curiosity naive
 
 f  : --curiosity free 
