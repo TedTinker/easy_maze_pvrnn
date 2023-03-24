@@ -4,8 +4,8 @@ import argparse
 #import sys ; sys.argv=[''] ; del sys
 import os 
 
-if(os.getcwd().split("/")[-1] != "easy_maze"): os.chdir("easy_maze")
-print(os.getcwd())
+#if(os.getcwd().split("/")[-1] != "easy_maze"): os.chdir("easy_maze")
+#print(os.getcwd())
 
 import torch
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -24,29 +24,28 @@ parser.add_argument('--step_lim_punishment',type=int,   default = -1)
 parser.add_argument('--wall_punishment',    type=int,   default = -1)
 
 # Module 
-parser.add_argument('--hidden',             type=int,   default = 32)
-parser.add_argument("--beta", nargs="*",    type=int,   default = [1])   # Scale complexity loss
-parser.add_argument('--forward_lr',         type=float, default = .01)
+parser.add_argument('--h_size',             type=int,   default = 32)
+parser.add_argument('--z_size',             type=int,   default = 8)
+parser.add_argument("--rnn_speed",nargs="*",type=float, default = [1])        # tau in PVRNN
+parser.add_argument('--pvrnn_lr',           type=float, default = .01)
 parser.add_argument('--alpha_lr',           type=float, default = .01) 
-parser.add_argument('--actor_lr',           type=float, default = .01)
 parser.add_argument('--critic_lr',          type=float, default = .01)
 
 # Memory buffer
 parser.add_argument('--capacity',           type=int,   default = 100)
 
 # Training
-parser.add_argument('--epochs',             type=int,   default = 1000)
+parser.add_argument('--episodes',           type=int,   default = 1000)
+parser.add_argument('--learn_per_steps',    type=int,   default = 3)
 parser.add_argument('--batch_size',         type=int,   default = 8)
 parser.add_argument('--GAMMA',              type=int,   default = .99)
 parser.add_argument("--d",                  type=int,   default = 2)        # Delay to train actors
 parser.add_argument("--alpha",              type=str,   default = 0)        # Soft-Actor-Critic entropy aim
 parser.add_argument("--target_entropy",     type=float, default = -2)       # Soft-Actor-Critic entropy aim
-parser.add_argument("--naive_eta",          type=float, default = 1)        # Scale curiosity
-parser.add_argument("--free_eta",           type=float, default = .01)        # Scale curiosity
+parser.add_argument("--beta", nargs="*",    type=float, default = [1])   # Scale complexity loss
+parser.add_argument("--eta",  nargs="*",    type=float, default = [1])        # Scale curiosity
 parser.add_argument("--tau",                type=float, default = .05)      # For soft-updating target critics
 parser.add_argument("--curiosity",          type=str,   default = "none")     # Which kind of curiosity
-
-# Saving data
 parser.add_argument('--keep_data',          type=int,   default = 10)
 
 
@@ -66,8 +65,6 @@ if(args.alpha == "None"):         args.alpha = None
 
 for arg in vars(default_args):
     default = getattr(default_args, arg) ; now = getattr(args, arg)
-    print("\n\n")
-    print(arg, now)
     if(default == "None"):  default_args.arg = None
     if(default == "True"):  default_args.arg = True
     if(default == "False"): default_args.arg = False
