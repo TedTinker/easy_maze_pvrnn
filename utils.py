@@ -36,7 +36,7 @@ parser.add_argument('--capacity',           type=int,   default = 100)
 
 # Training
 parser.add_argument('--episodes',           type=int,   default = 1000)
-parser.add_argument('--learn_per_steps',    type=int,   default = 3)
+parser.add_argument('--learn_per_steps',    type=int,   default = 5)
 parser.add_argument('--batch_size',         type=int,   default = 8)
 parser.add_argument('--GAMMA',              type=int,   default = .99)
 parser.add_argument("--d",                  type=int,   default = 2)        # Delay to train actors

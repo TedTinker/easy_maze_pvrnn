@@ -12,7 +12,8 @@ from utils import duration
 
 def get_quantiles(plot_dict, name):
     xs = [i for i, x in enumerate(plot_dict[name][0]) if x != None]
-    print(name, plot_dict[name])
+    print(name)
+    for j in plot_dict[name]: print(len(j))
     lists = np.array(plot_dict[name], dtype=float)    
     lists = lists[:,xs]
     quantile_dict = {"xs" : [x * plot_dict["args"][0].keep_data for x in xs]}
@@ -33,7 +34,11 @@ def get_logs(quantile_dict):
     for key in quantile_dict.keys():
         if(key != "xs"): quantile_dict[key] = np.log(quantile_dict[key])
     return(quantile_dict)
-    
+
+def log(x):
+    try: x = log(x)
+    except: pass
+    return(x)
 
 
 def awesome_plot(here, quantile_dict, color, label, min_max = None, line_transparency = .9, fill_transparency = .1):
@@ -56,7 +61,6 @@ def many_min_max(min_max_list):
 
 
 def plots(plot_dicts, min_max_dict):
-    start_time = datetime.datetime.now()
     fig, axs = plt.subplots(15, len(plot_dicts), figsize = (10*len(plot_dicts), 100))
                 
     for i, plot_dict in enumerate(plot_dicts):
@@ -262,7 +266,7 @@ def plots(plot_dicts, min_max_dict):
         
         
         
-        print("\n{}: {}.".format(plot_dict["title"], duration(start_time)))
+        print("\n{}: {}.".format(plot_dict["title"], duration()))
 
     
     

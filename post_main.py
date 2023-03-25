@@ -14,10 +14,8 @@ if(args.arg_title[:3] != "___"):
     
     try:
         print("Trying to load already-processed values...\n")
-        with open("saved/" + args.arg_title + "/" + "plot_dict.pickle", "rb") as handle: 
-            plot_dict = pickle.load(handle)
-        with open("saved/" + args.arg_title + "/" + "min_max_dict.pickle", "rb") as handle: 
-            min_max_dict = pickle.load(handle)
+        with open("saved/" + args.arg_title + "/" + "plot_dict.pickle",    "rb") as handle: plot_dict = pickle.load(handle)
+        with open("saved/" + args.arg_title + "/" + "min_max_dict.pickle", "rb") as handle: min_max_dict = pickle.load(handle)
         print("Already processed!\n")
     except:
         print("No already-processed values. Processing!\n")
@@ -54,17 +52,19 @@ if(args.arg_title[:3] != "___"):
 else:
     
     plot_dicts = [] ; min_max_dicts = []
-    
-    order = args.name[3:-3]
-    order = order.split("+")
+    order = args.name[3:-3].split("+")
     order = [o for o in order if o != "break"]
-    
-    sleep(2)
     for name in order:
-        with open("saved/" + name + "/" + "plot_dict.pickle", "rb") as handle: 
-            plot_dicts.append(pickle.load(handle))
-        with open("saved/" + name + "/" + "min_max_dict.pickle", "rb") as handle: 
-            min_max_dicts.append(pickle.load(handle))
+        done = False
+        while(not done):
+            try: 
+                with open("saved/" + name + "/" + "plot_dict.pickle",    "rb") as handle: plot_dicts.append(   pickle.load(handle)) ; done = True
+            except: print("Can't get {}'s plot_dict.".format(name)) 
+        done = False 
+        while(not done):
+            try: 
+                with open("saved/" + name + "/" + "min_max_dict.pickle", "rb") as handle: min_max_dicts.append(pickle.load(handle)) ; done = True 
+            except: print("Can't get {}'s min_max_dict.".format(name))  
             
     min_max_dict = {}
     for key in plot_dicts[0].keys():

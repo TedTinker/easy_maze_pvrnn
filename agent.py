@@ -99,10 +99,8 @@ class Agent:
     
     
     def episode(self, verbose = False):
-        done = False ; steps_this_episode = 0 ; 
-        prev_a = torch.zeros((1, 1, action_size)) ; h = None 
-        total_r = 0 ; plot_data = None
-        t_maze = T_Maze()
+        done = False ; prev_a = torch.zeros((1, 1, action_size)) ; h = None 
+        t_maze = T_Maze() ; total_r = 0 ; plot_data = None
         if(verbose): print("\n\n\n\n\nSTART!\n")
         if(verbose): print(t_maze)
         while(done == False):
@@ -112,25 +110,17 @@ class Agent:
                 action = a.squeeze(0).squeeze(0).tolist()
                 r, spot_name, done = t_maze.action(action[0], action[1], verbose)
                 next_o = t_maze.obs() ; prev_a = a
-                self.steps += 1 ; steps_this_episode += 1
                 self.memory.push(o, a, r, next_o, done, done)
-                total_r += r
+                total_r += r ; self.steps += 1
                 
-            if(self.steps % self.args.learn_per_steps == 0): 
-                print("\tStarting training {}: {}.".format(self.steps, duration()))
-                plot_data = self.learn(self.args.batch_size)
-                print("\tAfter training {}: {}.".format(self.steps, duration()))
-                
-        while(steps_this_episode < self.args.max_steps):
-            self.steps += 1 ; steps_this_episode += 1
-            if(self.steps % self.args.learn_per_steps == 0): 
-                print("\tStarting training {}: {}.".format(self.steps, duration()))
-                plot_data = self.learn(self.args.batch_size)
-                print("\tAfter training {}: {}.".format(self.steps, duration()))
-
         self.plot_dict["rewards"].append(total_r)
         self.plot_dict["spot_names"].append(spot_name)     
-        if(plot_data != None):
+        
+        for _ in range(self.args.max_steps // self.args.learn_per_steps):
+            print("\tStarting training {}: {}.".format(self.steps, duration()))
+            plot_data = self.learn(self.args.batch_size)
+            print("\tAfter training {}: {}.".format(self.steps, duration()))
+
             l, e, ie, ic, naive, free = plot_data
             self.plot_dict["error"].append(l[0])
             self.plot_dict["complexity"].append(l[1])
@@ -184,7 +174,10 @@ class Agent:
         log_probs = torch.cat([log_prob.unsqueeze(1) for log_prob in log_probs], dim = 1)
         complexity = sum(complexities)
         
-        pvrnn_loss = log_probs.mean() + complexity.mean() * self.args.beta[-1]
+        error_loss = log_probs.mean()
+        complexity_loss = complexity.mean() * self.args.beta[-1]
+        
+        pvrnn_loss = error_loss + complexity_loss
         for level in z_dkls.keys(): 
             z_dkls[level] = sum(z_dkls[level])
             pvrnn_loss += z_dkls[level].sum() * self.args.beta[level]
@@ -267,7 +260,8 @@ class Agent:
             
         print("\t\tAfter actor: {}.".format(duration()))
         
-        error_loss = 1 ; complexity_loss = 1
+        error_loss = error_loss.item()
+        complexity_loss = complexity_loss.item()
         if(alpha_loss != None): alpha_loss = alpha_loss.item()
         if(actor_loss != None): actor_loss = actor_loss.item()
         critic1_loss = log(critic1_loss.item())
